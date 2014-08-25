@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kaisquare.arbiter.dao.StreamServerDao">
+    <resultMap type="StreamServer" id="StreamServerResult">
+        <id property="id" column="id"/>
+        <result property="type" column="type"/>
+        <result property="ip" column="ip"/>
+        <result property="lastUpdated" column="last_updated"/>
+        <collection property="ports" ofType="Port" resultMap="PortResult" columnPrefix="port_"/>
+    </resultMap>
+
+    <resultMap type="Port" id="PortResult">
+        <result property="serverId" column="server_id"/>
+        <result property="port" column="port"/>
+        <result property="protocol" column="protocol"/>
+    </resultMap>
+
+    <select id="getStreamServerById" parameterType="long" resultMap="StreamServerResult">
+        SELECT
+            S.id, S.type, S.ip,
+            P.server_id as port_server_id, P.port as port_port, P.protocol as port_protocol
+        FROM streamservers S LEFT OUTER JOIN serverports P on S.id = P.server_id
+        WHERE S.id = #{id}
+    </select>
+
+    <select id="getAllStreamServers" resultMap="StreamServerResult">
+        SELECT
+        S.id, S.type, S.ip,
+        P.server_id as port_server_id, P.port as port_port, P.protocol as port_protocol
+        FROM streamservers S LEFT OUTER JOIN serverports P on S.id = P.server_id
+    </select>
+
+    <insert id="insertStreamServer" parameterType="StreamServer">
+        INSERT INTO streamservers (id, type, ip, last_updated)
+        VALUES (#{id}, #{type}, #{ip}, #{lastUpdated})
+    </insert>
+
+    <update id="updateStreamServer" parameterType="StreamServer">
+        UPDATE streamservers
+        SET
+            type = #{type},
+            ip = #{ip},
+            last_updated = #{lastUpdated}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteStreamServer" parameterType="long">
+        DELETE
+        FROM streamservers
+        WHERE id = #{id}
+    </delete>
+
+</mapper>

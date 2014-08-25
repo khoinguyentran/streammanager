@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kaisquare.arbiter.dao.PortDao">
+    <select id="getPortsByServerId" parameterType="long" resultType="Port">
+        SELECT
+            server_id as serverId,
+            port as port,
+            protocol as protocol
+        FROM serverports
+        WHERE server_id = #{serverId}
+    </select>
+
+    <insert id="insertPort" parameterType="Port">
+        INSERT INTO serverports (server_id, port, protocol)
+        VALUES (#{serverId}, #{port}, #{protocol})
+    </insert>
+
+    <delete id="deletePortsByServerId" parameterType="long">
+        DELETE
+        FROM serverports
+        WHERE server_id = #{serverId}
+    </delete>
+</mapper>

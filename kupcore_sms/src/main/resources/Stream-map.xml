@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.kaisquare.arbiter.dao.StreamDao">
+    <resultMap type="Stream" id="StreamResult">
+        <id property="id" column="id"/>
+        <result property="deviceId" column="device_id"/>
+        <result property="channelId" column="channel_id"/>
+        <result property="streamName" column="stream_name"/>
+        <result property="source" column="source"/>
+        <result property="sourceType" column="source_type"/>
+        <result property="outputUrl" column="output_url"/>
+        <result property="outputType" column="output_type"/>
+        <result property="serverId" column="server_id"/>
+    </resultMap>
+
+    <select id="getStreamsByNameByOutputType" parameterType="map" resultMap="StreamResult">
+        SELECT
+            *
+        FROM
+            streams
+        WHERE
+            stream_name=#{streamName}
+            AND output_type=#{outputType}
+        ORDER BY
+            last_updated
+    </select>
+
+    <insert id="insertStream">
+        INSERT INTO streams (
+            device_id,
+            channel_id,
+            stream_name,
+            source,
+            source_type,
+            output_url,
+            output_type,
+            server_id,
+            last_updated)
+        VALUES
+            (#{deviceId}, #{channelId}, #{streamName}, #{source}, #{sourceType},
+                #{outputUrl}, #{outputType}, #{serverId}, #{lastUpdated})
+    </insert>
+
+    <delete id="deleteStream" parameterType="map">
+        DELETE
+        FROM
+            streams
+        WHERE
+            device_id=#{deviceId}
+            AND channel_id=#{channelId}
+            AND stream_name=#{streamName}
+            AND output_type=#{outputType}
+    </delete>
+
+</mapper>
