@@ -2,10 +2,7 @@ package com.kaisquare.arbiter;
 
 import akka.actor.Inbox;
 import akka.japi.Pair;
-import com.kaisquare.arbiter.message.DeregisterStreamServer;
-import com.kaisquare.arbiter.message.Message;
-import com.kaisquare.arbiter.message.RegisterStreamServer;
-import com.kaisquare.arbiter.message.StreamServerRegistered;
+import com.kaisquare.arbiter.message.*;
 import com.kaisquare.stream.thrift.SmPortInfo;
 import com.kaisquare.stream.thrift.SmStreamServerInfo;
 import com.kaisquare.stream.thrift.SmStreamServerStatus;
@@ -26,7 +23,7 @@ public class StreamServerRegisterHandler implements StreamServerRegisterService.
 
 	@Override
 	public boolean registerStreamingServer(SmStreamServerInfo toRegister) {
-		boolean ok = true;
+		boolean ok;
 
 		List<Pair> ports = new ArrayList<>();
 
@@ -44,10 +41,12 @@ public class StreamServerRegisterHandler implements StreamServerRegisterService.
 		inbox.send(StreamManager.getHandleServerRegisterActor(), r);
 
 		FiniteDuration inboxWait = FiniteDuration.create(
-			StreamManager.getConf().getConfig("sms").getConfig("streamserverregister").getInt("inboxwait"),
+			StreamManager.getConf().getConfig("sms").getConfig("streamserverregister").getInt("inbox-wait"),
 			TimeUnit.MILLISECONDS);
 		Object msg = inbox.receive(inboxWait);
-		if (!(msg instanceof StreamServerRegistered))
+		if (msg instanceof StreamServerRegistered)
+			ok = true;
+		else
 			ok = false;
 
 		return ok;
@@ -59,18 +58,28 @@ public class StreamServerRegisterHandler implements StreamServerRegisterService.
 
 		inbox.send(StreamManager.getHandleServerRegisterActor(), r);
 		FiniteDuration inboxWait = FiniteDuration.create(
-			StreamManager.getConf().getConfig("sms").getConfig("streamserverregister").getInt("inboxwait"),
+			StreamManager.getConf().getConfig("sms").getConfig("streamserverregister").getInt("inbox-wait"),
 			TimeUnit.MILLISECONDS);
 		inbox.receive(inboxWait);
 	}
 	@Override
 	public boolean updateStreamingServerStatus(SmStreamServerStatus status) {
-		boolean ok = true;
+		boolean ok;
+
+		UpdateStreamServerStatus r = new UpdateStreamServerStatus();
+		r.serverId = status.getId();
+
+		inbox.send(StreamManager.getHandleServerRegisterActor(), r);
 
 		FiniteDuration inboxWait = FiniteDuration.create(
-			StreamManager.getConf().getConfig("sms").getConfig("streamserverregister").getInt("inboxwait"),
+			StreamManager.getConf().getConfig("sms").getConfig("streamserverregister").getInt("inbox-wait"),
 			TimeUnit.MILLISECONDS);
 		Object msg = inbox.receive(inboxWait);
+		if (msg instanceof StreamServerStatusUpdated)
+			ok = true;
+		else
+			ok = false;
+
 
 		return ok;
 	}

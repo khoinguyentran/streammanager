@@ -27,7 +27,7 @@
 
     <select id="getAllStreamServers" resultMap="StreamServerResult">
         SELECT
-        S.id, S.type, S.ip,
+        S.id, S.type, S.ip, S.last_updated,
         P.server_id as port_server_id, P.port as port_port, P.protocol as port_protocol
         FROM streamservers S LEFT OUTER JOIN serverports P on S.id = P.server_id
     </select>

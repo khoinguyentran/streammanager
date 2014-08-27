@@ -22,15 +22,12 @@ public class HandleAddStreamActor extends UntypedActor {
 
 	ActorRef requestor;
 	Stream streamInfo;
-	// Timer for aborting.
-	Cancellable abort;
+	int retries;
 
 	@Override
 	public void onReceive(Object message) {
-		if (message.equals("abort")) {
-			processAbort();
-		} else if (message instanceof AddStream) {
-			processAddStream((AddStream) message);
+		if (message instanceof AddStream) {
+			processAddStream((AddStream)message);
 		} else if (message instanceof StreamAdded) {
 			processStreamAdded((StreamAdded)message);
 		} else if (message instanceof StreamAddFailed) {
@@ -41,15 +38,8 @@ public class HandleAddStreamActor extends UntypedActor {
 	}
 	@Override
 	public void preStart() {
-		long interval = 0;
-		long delay = StreamManager.getConf()
-			.getConfig("sms").getConfig("streammanagement").getLong("addstream-timeout");
-
-		// Schedule timer for giving up.
-		abort = getContext().system().scheduler().schedule(
-			Duration.create(delay, TimeUnit.MILLISECONDS),
-			Duration.create(interval, TimeUnit.MILLISECONDS),
-			getSelf(), "abort", getContext().dispatcher(), null);
+		retries = StreamManager.getConf()
+			.getConfig("sms").getConfig("streammanagement").getInt("addstream-retries");
 	}
 	@Override
 	public void postStop() {
@@ -79,8 +69,6 @@ public class HandleAddStreamActor extends UntypedActor {
 			StreamAdded ok = new StreamAdded();
 			ok.streamInfo = streams.get(0);
 			requestor.tell(ok, getSelf());
-
-			abort.cancel();
 
 			getContext().stop(getSelf());
 		} else {
@@ -114,8 +102,6 @@ public class HandleAddStreamActor extends UntypedActor {
 			requestor.tell(r, getSelf());
 		}
 
-		abort.cancel();
-
 		getContext().stop(getSelf());
 	}
 	void processStreamAddFailed(StreamAddFailed r) {
@@ -124,13 +110,13 @@ public class HandleAddStreamActor extends UntypedActor {
 		log.error("{}/{}/{}/{} failed to add stream",
 			s.getDeviceId(), s.getChannelId(), s.getStreamName(), s.getOutputType());
 
-		// Retry until timeout.
+		if (retries == 0)
+			getContext().stop(getSelf());
+
 		AddStream m = new AddStream();
 		m.streamInfo = streamInfo;
-
 		StreamManager.getManageStreamServerActor().tell(m, getSelf());
-	}
-	void processAbort() {
-		getContext().stop(getSelf());
+
+		retries--;
 	}
 }

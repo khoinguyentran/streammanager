@@ -1,5 +1,6 @@
 package com.kaisquare.arbiter;
 
+import akka.actor.ActorRef;
 import akka.actor.UntypedActor;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
@@ -9,11 +10,14 @@ import com.kaisquare.arbiter.dao.PortDaoMyBatis;
 import com.kaisquare.arbiter.dao.StreamServer;
 import com.kaisquare.arbiter.dao.StreamServerDaoMyBatis;
 import com.kaisquare.arbiter.message.*;
+import org.apache.ibatis.annotations.Update;
 
 import java.util.Date;
 
 public class HandleServerRegisterActor extends UntypedActor {
 	LoggingAdapter log = Logging.getLogger(getContext().system().eventStream(), this.getClass());
+
+	ActorRef requestor;
 
 	@Override
 	public void onReceive(Object message) {
@@ -21,6 +25,8 @@ public class HandleServerRegisterActor extends UntypedActor {
 			processRegisterStreamServer((RegisterStreamServer)message);
 		} else if (message instanceof DeregisterStreamServer) {
 			processDeregisterStreamServer((DeregisterStreamServer)message);
+		} else if (message instanceof UpdateStreamServerStatus) {
+			processUpdateStreamServerStatus((UpdateStreamServerStatus)message);
 		} else {
 			unhandled(message);
 		}
@@ -33,6 +39,8 @@ public class HandleServerRegisterActor extends UntypedActor {
 	void processRegisterStreamServer(RegisterStreamServer r) {
 		log.debug("{}/{} registers", r.type, r.serverId);
 
+		requestor = getSender();
+
 		StreamServerRegistered ok = new StreamServerRegistered();
 		StreamServerRegisterFailed error = new StreamServerRegisterFailed();
 
@@ -41,7 +49,7 @@ public class HandleServerRegisterActor extends UntypedActor {
 
 		if (!pdao.deletePortsByServerId(r.serverId)) {
 			log.error("{}/{} failed to remove old server ports");
-			getSender().tell(error, getSelf());
+			requestor.tell(error, getSelf());
 			return;
 		}
 
@@ -55,11 +63,24 @@ public class HandleServerRegisterActor extends UntypedActor {
 
 			if (!sdao.insertStreamServer(toInsert)) {
 				log.error("{}/{} failed to register server", r.type, r.serverId);
-				getSender().tell(error, getSelf());
+				requestor.tell(error, getSelf());
 				return;
 			} else {
+				for (Pair p : r.ports) {
+					Port port = new Port();
+					port.setServerId(r.serverId);
+					port.setPort((int)p.first());
+					port.setProtocol((String)p.second());
+
+					if (!pdao.insertPort(port)) {
+						log.error("{}/{} failed to insert port {}", r.type, r.serverId, port.toString());
+						requestor.tell(error, getSelf());
+						return;
+					}
+				}
+
 				log.info("{}/{} registered", r.type, r.serverId);
-				getSender().tell(ok, getSelf());
+				requestor.tell(ok, getSelf());
 				return;
 			}
 		} else {
@@ -71,7 +92,7 @@ public class HandleServerRegisterActor extends UntypedActor {
 
 			if (!sdao.updateStreamServer(toUpdate)) {
 				log.error("{}/{} failed to update server", r.type, r.serverId);
-				getSender().tell(error, getSelf());
+				requestor.tell(error, getSelf());
 				return;
 			}
 
@@ -83,19 +104,20 @@ public class HandleServerRegisterActor extends UntypedActor {
 
 				if (!pdao.insertPort(port)) {
 					log.error("{}/{} failed to insert port {}", r.type, r.serverId, port.toString());
-					getSender().tell(error, getSelf());
+					requestor.tell(error, getSelf());
 					return;
 				}
 			}
 
 			log.info("{}/{} updated", r.type, r.serverId);
-			getSender().tell(ok, getSelf());
+			requestor.tell(ok, getSelf());
 			return;
 		}
 	}
 	void processDeregisterStreamServer(DeregisterStreamServer r) {
 		log.debug("streamserver/{} deregisters", r.serverId);
 
+		requestor = getSender();
 		StreamServerDeregistered ok = new StreamServerDeregistered();
 		StreamServerDeregisterFailed error = new StreamServerDeregisterFailed();
 
@@ -110,12 +132,38 @@ public class HandleServerRegisterActor extends UntypedActor {
 
 		if (!sdao.deleteStreamServer(serverId)) {
 			log.error("streamserver/{} failed to deregister", serverId);
-			getSender().tell(ok, getSelf());
+			requestor.tell(ok, getSelf());
 			return;
 		} else {
 			log.info("streamserver/{} deregistered", serverId);
-			getSender().tell(error, getSelf());
+			requestor.tell(error, getSelf());
 			return;
 		}
+	}
+	void processUpdateStreamServerStatus(UpdateStreamServerStatus r) {
+		log.debug("streamserver/{} pings", r.serverId);
+
+		long serverId = r.serverId;
+		requestor = getSender();
+		StreamServerStatusUpdated ok = new StreamServerStatusUpdated();
+		StreamServerStatusUpdateFailed error = new StreamServerStatusUpdateFailed();
+
+		StreamServerDaoMyBatis sdao = new StreamServerDaoMyBatis();
+
+		StreamServer server = sdao.getStreamServerById(serverId);
+		if (server == null) {
+			log.error("streamserver/{} does not exist", serverId);
+			requestor.tell(error, getSelf());
+			return;
+		}
+
+		server.setLastUpdated(new Date());
+		if (!sdao.updateStreamServer(server)) {
+			log.error("streamserver/{} status could not be updated");
+			requestor.tell(error, getSelf());
+			return;
+		}
+
+		requestor.tell(ok, getSelf());
 	}
 }

@@ -69,7 +69,17 @@ public class ManageStreamServerActor extends UntypedActor {
 		List<StreamServer> svlist = dao.getAllStreamServers();
 		if (svlist.isEmpty()) {
 			log.info("no stream server in database");
-			return;
+		}
+
+		// Remove servers which have not updated recently.
+		long updateExpire =  StreamManager.getConf()
+			.getConfig("sms").getConfig("servermanagement").getLong("update-expire");
+		Date now = new Date();
+		for (Iterator<StreamServer> iter = svlist.iterator(); iter.hasNext(); ) {
+			StreamServer s = iter.next();
+			long duration = now.getTime() - s.getLastUpdated().getTime();
+			if (duration > updateExpire)
+				iter.remove();
 		}
 
 		// Move all valid servers to new list and update them.
