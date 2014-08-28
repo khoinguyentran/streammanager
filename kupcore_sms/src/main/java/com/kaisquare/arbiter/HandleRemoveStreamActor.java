@@ -1,51 +1,39 @@
 package com.kaisquare.arbiter;
 
 import akka.actor.ActorRef;
-import akka.actor.Cancellable;
 import akka.actor.UntypedActor;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
 import com.kaisquare.arbiter.dao.Stream;
 import com.kaisquare.arbiter.dao.StreamDaoMyBatis;
 import com.kaisquare.arbiter.message.RemoveStream;
+import com.kaisquare.arbiter.message.RemoveStreamsFromServer;
 import com.kaisquare.arbiter.message.StreamRemoveFailed;
 import com.kaisquare.arbiter.message.StreamRemoved;
-import scala.concurrent.duration.Duration;
 
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 public class HandleRemoveStreamActor extends UntypedActor {
 	LoggingAdapter log = Logging.getLogger(getContext().system().eventStream(), this.getClass());
 
 	ActorRef requestor;
 	Stream streamInfo;
-	Cancellable timeout;
 
 	@Override
 	public void onReceive(Object message) {
 		if (message instanceof RemoveStream) {
-			processRemoveStream((RemoveStream) message);
-		} else if (message.equals("timeout")) {
-			processTimeout();
+			processRemoveStream((RemoveStream)message);
+		} else if (message instanceof RemoveStreamsFromServer) {
+			processRemoveStreamsFromServer((RemoveStreamsFromServer)message);
 		} else {
 			unhandled(message);
 		}
 	}
 	@Override
 	public void preStart() {
-		long to = StreamManager.getConf()
-			.getConfig("sms").getConfig("streammanagement").getLong("handler-timeout");
-
-		// Schedule timer for refreshing server list.
-		timeout = getContext().system().scheduler().schedule(
-			Duration.create(to, TimeUnit.MILLISECONDS),
-			Duration.create(0, TimeUnit.MILLISECONDS),
-			getSelf(), "timeout", getContext().dispatcher(), null);
 	}
 	@Override
 	public void postStop() {
-		timeout.cancel();
 		log.debug("stopped");
 	}
 
@@ -91,14 +79,13 @@ public class HandleRemoveStreamActor extends UntypedActor {
 
 		getContext().stop(getSelf());
 	}
-	void processTimeout() {
-		log.warning("{}.{}.{}.{} timed out",
-			streamInfo.getDeviceId(), streamInfo.getChannelId(),
-			streamInfo.getStreamName(), streamInfo.getOutputType());
+	void processRemoveStreamsFromServer(RemoveStreamsFromServer r) {
+		requestor = getSender();
+		long serverId = r.serverId;
 
-		StreamRemoveFailed error = new StreamRemoveFailed();
-		error.streamInfo = streamInfo;
-		requestor.tell(error, getSelf());
+		log.info("Removing streams from streamserver/{}", serverId);
+		StreamDaoMyBatis dao = new StreamDaoMyBatis();
+		dao.deleteStreamsByServerId(serverId);
 
 		getContext().stop(getSelf());
 	}

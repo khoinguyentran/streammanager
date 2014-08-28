@@ -78,8 +78,14 @@ public class ManageStreamServerActor extends UntypedActor {
 		for (Iterator<StreamServer> iter = svlist.iterator(); iter.hasNext(); ) {
 			StreamServer s = iter.next();
 			long duration = now.getTime() - s.getLastUpdated().getTime();
-			if (duration > updateExpire)
-				iter.remove();
+			if (duration < updateExpire)
+				continue;
+
+			// Remove all streams hosted on this server.
+			RemoveStreamsFromServer r = new RemoveStreamsFromServer();
+			r.serverId = s.getId();
+			StreamManager.getDispatchRequestActor().tell(r, getSelf());
+			iter.remove();
 		}
 
 		// Move all valid servers to new list and update them.
@@ -125,7 +131,6 @@ public class ManageStreamServerActor extends UntypedActor {
 
 			StreamAddFailed error = new StreamAddFailed();
 			error.streamInfo = r.streamInfo;
-
 			getSender().tell(error, getSelf());
 			return;
 		}

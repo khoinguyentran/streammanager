@@ -22,6 +22,8 @@ public class DispatchRequestActor extends UntypedActor {
 			processAddStream((AddStream)message);
 		} else if (message instanceof RemoveStream) {
 			processRemoveStream((RemoveStream)message);
+		} else if (message instanceof RemoveStreamsFromServer) {
+			processRemoveStreamsFromServer((RemoveStreamsFromServer)message);
 		} else if (message instanceof GetStreamClients) {
 			processGetStreamClients((GetStreamClients)message);
 		} else if (message instanceof GetServerPoolInfo) {
@@ -59,6 +61,16 @@ public class DispatchRequestActor extends UntypedActor {
 					r.streamInfo.getDeviceId(),
 					r.streamInfo.getChannelId(),
 					r.streamInfo.getStreamName(),
+					System.currentTimeMillis()));
+		handler.forward(r, getContext());
+	}
+	void processRemoveStreamsFromServer(RemoveStreamsFromServer r) {
+		log.debug("dispatch RemoveStreamsFromServer");
+
+		ActorRef handler = getContext()
+			.actorOf(Props.create(HandleRemoveStreamActor.class),
+				String.format("removestreamsfromserver.%d.%d",
+					r.serverId,
 					System.currentTimeMillis()));
 		handler.forward(r, getContext());
 	}

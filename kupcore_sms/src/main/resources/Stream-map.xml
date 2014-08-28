@@ -54,4 +54,12 @@
             AND output_type=#{outputType}
     </delete>
 
+    <delete id="deleteStreamsByServerId" parameterType="long">
+        DELETE
+        FROM
+            streams
+        WHERE
+            server_id=#{serverId}
+    </delete>
+
 </mapper>
